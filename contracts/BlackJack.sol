@@ -7,7 +7,7 @@ contract Blackjack {
 	struct Game{
 	    uint min_buy_in;
 	    uint time_per_turn;
-	    uint seats
+	    uint seats;
 	}
 	struct Deck{
 
