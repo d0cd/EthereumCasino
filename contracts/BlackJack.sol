@@ -28,10 +28,10 @@ contract Blackjack {
 	        throw;
 	    }
 	    else{
-	    Player c = Players[numPlayers++];
-            c.player = msg.sender;
-            c.amount = msg.value;
-            a.seats -= 1;
+	        Player c = Players[numPlayers++];
+                c.player = msg.sender;
+                c.amount = msg.value;
+                a.seats -= 1;
 	    }
 	function play(uint numGames, uint numPlayers,)
 	}
