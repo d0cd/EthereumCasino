@@ -42,7 +42,6 @@ contract Casino {
     } else {
       throw;
     }
-
   }
 
 }
