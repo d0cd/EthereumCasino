@@ -23,6 +23,7 @@ contract Casino {
   }
 
   function createNewGame() payable {
+
   }
 
   function withdrawFunds() returns (bool) {
