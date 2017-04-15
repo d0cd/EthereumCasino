@@ -1,6 +1,6 @@
-pragma solidity ^0.4.9;
+pragma solidity ^0.4.8;
 
-contract Blockjack {
+contract BlockJack {
 
 		enum Stages {
 			AddPlayers,
@@ -9,9 +9,9 @@ contract Blockjack {
 		}
 
     //Variables to keep track of game state.
-    uint buyIn;
-    uint numPlayers;
-    uint[] cardsDrawn;
+    uint public buyIn;
+    uint public numPlayers;
+    uint[] public cardsDrawn;
     uint timeLimit = 60 seconds;
     uint turn = 0;
     uint pot = 0;
@@ -28,12 +28,11 @@ contract Blockjack {
     //Player struct to keep track of player data.
     struct Player {
         uint balance;
-            bool pass;
-            uint randSeed;
-            uint order;
-            uint score;
-            uint[] hand;
-						bytes32 pubKey;
+        bool pass;
+        uint randSeed;
+        uint order;
+        uint score;
+        uint[] hand;
     }
 
     mapping (address => Player) players;
@@ -54,7 +53,10 @@ contract Blockjack {
 			if (stage == Stages.AddPlayers && now >= time + 5 minutes && numPlayers > 1) {
 				nextStage();
 			}
-			if (stage == Stages.AnteUp && now >= time + 5 minutes) {
+			if (stage == Stages.AnteUp && roundPlayers.length > 1) {
+				nextStage();
+			}
+			/*if (stage == Stages.AnteUp && now >= time + 5 minutes ) {
 				if (roundPlayers.length > 1) {
 					nextStage();
 				} else {
@@ -63,42 +65,40 @@ contract Blockjack {
 						removePlayer(allPlayers[i]);
 					}
 				}
-			}
+			}*/
 			_;
 		}
     //Creates a new BlockJack game, where the amount sent in
     //transaction is the minimum buy in.
-    function BlockJack(uint randSeed, uint playerCap, bytes32 key) payable {
-            buyIn = msg.value;
+    function BlockJack(uint randSeed, uint playerCap, uint bet) {
+            buyIn = bet;
             randNum = block.timestamp + randSeed;
             maxPlayers = playerCap;
-            numPlayers += 1;
 						lock = false;
 						deal = true;
-            constructPlayer(msg.sender, msg.value, randSeed, key);
     }
 
-    function constructPlayer(address addr, uint balance, uint randSeed, bytes32 key) {
+    function constructPlayer(address addr, uint balance, uint randSeed) private {
         Player newPlayer = players[addr];
         newPlayer.balance = balance;
         newPlayer.pass = false;
         newPlayer.randSeed = randSeed;
         newPlayer.order = 0;
-				newPlayer.pubKey = key;
     }
 
 
     //Adds a player to the game, provided amount meets minimum buy in.
-    function addPlayer(bytes32 key, uint randSeed)
+    function addPlayer(uint randSeed)
 				payable
 				timedTransitions
 				atStage(Stages.AddPlayers) {
 	      if (addPlayers && msg.value >= buyIn) {
 	              randNum += randSeed;
-	              constructPlayer(msg.sender, msg.value, randSeed, key);
+	              constructPlayer(msg.sender, msg.value, randSeed);
 	              numPlayers += 1;
 	              if (numPlayers == maxPlayers) {
 	                  addPlayers = false;
+										nextStage();
 	              }
 	      } else {
 	              throw;
@@ -138,7 +138,6 @@ contract Blockjack {
             player.order = 0;
             player.score = 0;
             player.randSeed = 0;
-						player.pubKey = 0;
             delete player.hand;
     }
 
@@ -146,7 +145,6 @@ contract Blockjack {
     function ante(uint randSeed)
 				timedTransitions
 				atStage(Stages.AnteUp) {
-        if (addPlayers) throw;
         Player player = players[msg.sender];
         if (player.balance < buyIn) throw;
         pot += buyIn;
@@ -155,6 +153,9 @@ contract Blockjack {
         player.order = roundPlayers.length;
         player.randSeed = player.randSeed * randNum;
         roundPlayers.push(msg.sender);
+				if (roundPlayers.length == allPlayers.length) {
+					nextStage();
+				}
     }
 
 
@@ -171,7 +172,12 @@ contract Blockjack {
             uint card = drawCard(player);
             cardsDrawn.push(card);
             player.hand.push(card);
+						randNum = randNum * card;
         }
+				for (uint j = 0; j < roundPlayers.length; j++) {
+					player = players[roundPlayers[j]];
+					player.score = calculateScore(player);
+				}
 				deal = false;
     }
 
@@ -183,13 +189,13 @@ contract Blockjack {
 				timedTransitions
 				atStage(Stages.Play)
 				returns (uint) {
-        uint card = (player.randSeed + block.number) % 416;
+        uint card = (player.randSeed * randNum + block.timestamp) % 416;
 				bool loop = true;
 				player.randSeed += card;
 				while (loop) {
 					for (uint j = 0; j < cardsDrawn.length; j++) {
 						if (cardsDrawn[j] == card) {
-							card = (player.randSeed + block.number) % 416;
+							card = (player.randSeed + block.timestamp) % 416;
 							break;
 						}
 					}
@@ -237,7 +243,6 @@ contract Blockjack {
         uint maxScore = 0;
         for (uint i = 0; i < roundPlayers.length; i += 1) {
             Player player = players[roundPlayers[i]];
-            player.score = calculateScore(player);
             if (player.score > maxScore && player.score <= 21) {
                 maxScore = player.score;
             }
@@ -255,7 +260,7 @@ contract Blockjack {
     function calculateScore(Player player) private returns (uint) {
         uint score = 0;
         for (uint i = 0; i < player.hand.length; i++) {
-            uint card = (player.hand[i] % 52) % 13;
+            uint card = player.hand[i] % 52 % 13;
             score += card;
         }
         return score;
@@ -288,4 +293,37 @@ contract Blockjack {
         delete winners;
 				stage = Stages.AddPlayers;
     }
+
+		function getBuyIn() returns (uint) {
+			return buyIn;
+		}
+
+		function getNumPlayers() returns (uint) {
+			return numPlayers;
+		}
+
+		function getPot() returns (uint) {
+			return pot;
+		}
+
+		function getCards(address addr) returns (uint[]) {
+			return players[addr].hand;
+		}
+
+		function getFirstCard() returns (uint) {
+			return cardsDrawn[0];
+		}
+
+		function getAllCards() returns (uint[]) {
+			return cardsDrawn;
+		}
+
+		function getBalance() returns (uint) {
+			return players[msg.sender].balance;
+		}
+
+		function getScore() returns (uint) {
+			return players[msg.sender].score;
+		}
+
 }
