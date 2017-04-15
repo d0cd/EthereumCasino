@@ -12,10 +12,9 @@ contract BlockJack {
     uint public buyIn;
     uint public numPlayers;
     uint[] public cardsDrawn;
-    uint timeLimit = 60 seconds;
+    uint timeLimit = 90 seconds;
     uint turn = 0;
-    uint pot = 0;
-    bool addPlayers = true;
+    uint public pot = 0;
     uint numPasses = 0;
     uint randNum;
     uint maxPlayers;
@@ -92,12 +91,11 @@ contract BlockJack {
 				payable
 				timedTransitions
 				atStage(Stages.AddPlayers) {
-	      if (addPlayers && msg.value >= buyIn) {
+	      if (msg.value >= buyIn) {
 	              randNum += randSeed;
 	              constructPlayer(msg.sender, msg.value, randSeed);
 	              numPlayers += 1;
 	              if (numPlayers == maxPlayers) {
-	                  addPlayers = false;
 										nextStage();
 	              }
 	      } else {
@@ -147,9 +145,9 @@ contract BlockJack {
 				atStage(Stages.AnteUp) {
         Player player = players[msg.sender];
         if (player.balance < buyIn) throw;
-        pot += buyIn;
+				player.balance -= buyIn;
+				pot += buyIn;
         randNum += randSeed;
-        player.balance -= buyIn;
         player.order = roundPlayers.length;
         player.randSeed = player.randSeed * randNum;
         roundPlayers.push(msg.sender);
@@ -261,6 +259,14 @@ contract BlockJack {
         uint score = 0;
         for (uint i = 0; i < player.hand.length; i++) {
             uint card = player.hand[i] % 52 % 13;
+						if (card > 10) {
+							card = 10;
+						}
+						if (card == 0) {
+							if (score + 11 > 21) {
+								card = 1;
+							}
+						}
             score += card;
         }
         return score;
@@ -278,7 +284,6 @@ contract BlockJack {
   	}
 
     function clear() private {
-        addPlayers = true;
         numPasses = 0;
 				deal = true;
         for (uint i = 0; i < roundPlayers.length; i++) {
