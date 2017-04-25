@@ -1,10 +1,13 @@
 pragma solidity ^0.4.8;
 
+import "./Casino.sol";
+
 contract BlockJack {
 
 		enum Stages {
 			AddPlayers,
 			AnteUp,
+			Deal,
 			Play
 		}
 
@@ -12,7 +15,7 @@ contract BlockJack {
     uint public buyIn;
     uint public numPlayers;
     uint[] public cardsDrawn;
-    uint timeLimit = 90 seconds;
+    uint timeLimit = 2 minutes;
     uint turn = 0;
     uint public pot = 0;
     uint numPasses = 0;
@@ -21,8 +24,10 @@ contract BlockJack {
     address[] roundPlayers;
 		address[] allPlayers;
     address[] winners;
-		bool lock;
 		bool deal;
+		Casino casino;
+		uint private gameIndex;
+		uint timer;
 
     //Player struct to keep track of player data.
     struct Player {
@@ -35,6 +40,7 @@ contract BlockJack {
     }
 
     mapping (address => Player) players;
+		mapping (uint => Player) orders;
 
 		Stages public stage = Stages.AddPlayers;
     uint public time = now;
@@ -43,8 +49,12 @@ contract BlockJack {
 				_;
 		}
 
+
 		function nextStage() internal {
 				stage = Stages(uint(stage) + 1);
+				if (stage == Stages.Play) {
+					timer = now;
+				}
 		}
 
 		//TODO: Destroy game if no one is resonding
@@ -55,26 +65,18 @@ contract BlockJack {
 			if (stage == Stages.AnteUp && roundPlayers.length > 1) {
 				nextStage();
 			}
-			/*if (stage == Stages.AnteUp && now >= time + 5 minutes ) {
-				if (roundPlayers.length > 1) {
-					nextStage();
-				} else {
-					delete roundPlayers;
-					for (uint i = 0; i < allPlayers.length; i++) {
-						removePlayer(allPlayers[i]);
-					}
-				}
-			}*/
 			_;
 		}
     //Creates a new BlockJack game, where the amount sent in
     //transaction is the minimum buy in.
-    function BlockJack(uint randSeed, uint playerCap, uint bet) {
-            buyIn = bet;
-            randNum = block.timestamp + randSeed;
-            maxPlayers = playerCap;
-						lock = false;
-						deal = true;
+    function BlockJack(uint randSeed, uint playerCap, uint bet, uint index, Casino origin) {
+          buyIn = bet;
+          randNum = block.timestamp + randSeed;
+          maxPlayers = playerCap;
+					deal = true;
+					numPlayers = 0;
+					casino = origin;
+					gameIndex = index;
     }
 
     function constructPlayer(address addr, uint balance, uint randSeed) private {
@@ -87,46 +89,70 @@ contract BlockJack {
 
 
     //Adds a player to the game, provided amount meets minimum buy in.
-    function addPlayer(uint randSeed)
+    function addPlayerFromCasino(uint randSeed, address addr)
 				payable
 				timedTransitions
-				atStage(Stages.AddPlayers) {
+				atStage(Stages.AddPlayers)
+				returns (uint) {
 	      if (msg.value >= buyIn) {
 	              randNum += randSeed;
-	              constructPlayer(msg.sender, msg.value, randSeed);
+	              constructPlayer(addr, msg.value, randSeed);
 	              numPlayers += 1;
 	              if (numPlayers == maxPlayers) {
 										nextStage();
 	              }
+								return numPlayers;
 	      } else {
 	              throw;
+
 	      	}
   	}
+
+		function addPlayer(uint randSeed)
+			payable
+			timedTransitions
+			atStage(Stages.AddPlayers) {
+			if (msg.value >= buyIn) {
+							randNum += randSeed;
+							constructPlayer(msg.sender, msg.value, randSeed);
+							numPlayers += 1;
+							if (numPlayers == maxPlayers) {
+									nextStage();
+							}
+			} else {
+							throw;
+				}
+		}
 
     function addFunds() payable {
         Player thisPlayer = players[msg.sender];
         thisPlayer.balance += msg.value;
     }
 
-		function removePlayer(address addr) private {
-			cashOut(addr);
+		function removePlayer() {
+			for (uint i = 0; i < roundPlayers.length; i++) {
+				if (roundPlayers[i] == msg.sender) throw;
+			}
+			if (numPlayers <= 2) {
+				for (i = 0; i < allPlayers.length; i++) {
+					cashOut(allPlayers[i]);
+				}
+				casino.removeGame(gameIndex);
+			} else {
+					cashOut(msg.sender);
+			}
 		}
 
-    function cashOut(address addr) returns (bool) {
-				if (addr != msg.sender) throw;
-				for (uint i = 0; i < roundPlayers.length; i++) {
-					if (roundPlayers[i] == msg.sender) throw;
-				}
-        Player player = players[msg.sender];
+    function cashOut(address addr) private {
+        Player player = players[addr];
         uint amount = player.balance;
 				if (player.balance == 0) throw;
         player.balance = 0;
-        if (!msg.sender.send(amount)) {
+        if (!addr.send(amount)) {
             player.balance = amount;
-            return false;
-        }
-        remove(msg.sender);
-        return true;
+        } else {
+        		remove(addr);
+				}
     }
 
     function remove(address addr) private {
@@ -149,6 +175,7 @@ contract BlockJack {
 				pot += buyIn;
         randNum += randSeed;
         player.order = roundPlayers.length;
+				orders[player.order] = player;
         player.randSeed = player.randSeed * randNum;
         roundPlayers.push(msg.sender);
 				if (roundPlayers.length == allPlayers.length) {
@@ -159,7 +186,7 @@ contract BlockJack {
 
     function dealCards()
 				timedTransitions
-				atStage(Stages.Play)
+				atStage(Stages.Deal)
 				{
 				if (!deal) {
 					throw;
@@ -177,6 +204,7 @@ contract BlockJack {
 					player.score = calculateScore(player);
 				}
 				deal = false;
+				nextStage();
     }
 
 
@@ -207,10 +235,13 @@ contract BlockJack {
 				atStage(Stages.Play)
 				{
         Player player = players[msg.sender];
-        if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
+				if (now > timer + timeLimit) {
+					orders[turn].pass = true;
+				}
+        else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
             throw;
         }
-        if (hit) {
+        else if (hit) {
             uint card = drawCard(player);
             cardsDrawn.push(card);
             player.hand.push(card);
@@ -303,7 +334,11 @@ contract BlockJack {
 			return buyIn;
 		}
 
-		function getNumPlayers() returns (uint) {
+		function isFull() returns (bool) {
+			return numPlayers == maxPlayers;
+		}
+
+		function getNumPlayers() returns (uint res) {
 			return numPlayers;
 		}
 
@@ -329,6 +364,10 @@ contract BlockJack {
 
 		function getScore() returns (uint) {
 			return players[msg.sender].score;
+		}
+
+		function getAddr() returns (address) {
+			return this;
 		}
 
 }
