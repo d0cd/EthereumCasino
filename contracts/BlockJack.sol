@@ -230,7 +230,7 @@ contract BlockJack {
         return card;
     }
 
-    function play(bool hit, uint randSeed)
+    function hit (uint randSeed)
 				timedTransitions
 				atStage(Stages.Play)
 				{
@@ -241,7 +241,7 @@ contract BlockJack {
         else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
             throw;
         }
-        else if (hit) {
+        else {
             uint card = drawCard(player);
             cardsDrawn.push(card);
             player.hand.push(card);
@@ -251,10 +251,6 @@ contract BlockJack {
                 player.pass == true;
                 numPasses += 1;
             }
-
-        } else {
-            player.pass == true;
-            numPasses += 1;
         }
         if (turn == roundPlayers.length) {
             turn = 0;
@@ -262,6 +258,48 @@ contract BlockJack {
             turn += 1;
         }
     }
+
+		function surrender()
+				timedTransitions
+				atStage(Stages.Play)
+				{
+				Player player = players[msg.sender];
+				if (now > timer + timeLimit) {
+					orders[turn].pass = true;
+				}
+        else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
+            throw;
+				} else {
+						if (player.hand.length == 2) {
+								player.score = 100;
+								player.balance += buyIn / 2;
+								pot -= buyIn / 2;
+						} else {
+							throw;
+						}
+				}
+				if (turn == roundPlayers.length) {
+						turn = 0;
+				} else {
+						turn += 1;
+				}
+		}
+
+		function pass()
+				timedTransitions
+				atStage(Stages.Play)
+				{
+				Player player = players[msg.sender];
+				if (now > timer + timeLimit) {
+					orders[turn].pass = true;
+				}
+				else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
+						throw;
+				} else {
+					player.pass = true;
+				}
+
+	}
 
 
     function determineWinner()
@@ -288,18 +326,24 @@ contract BlockJack {
     /*TODO: Add in blackjack rules for card values */
     function calculateScore(Player player) private returns (uint) {
         uint score = 0;
+				uint numAces = 0;
         for (uint i = 0; i < player.hand.length; i++) {
             uint card = player.hand[i] % 52 % 13;
 						if (card > 10) {
 							card = 10;
 						}
 						if (card == 0) {
-							if (score + 11 > 21) {
-								card = 1;
-							}
+							numAces += 1;
 						}
             score += card;
         }
+				for (uint j = 0; j < numAces; j++) {
+					if (score + 11 > 21) {
+						score += 1;
+					} else {
+						score += 11;
+					}
+				}
         return score;
     }
 
