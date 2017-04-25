@@ -21,7 +21,7 @@ contract Casino {
 
 
     function createBlockJack(uint randSeed, uint playerCap, uint bet) payable returns (address) {
-        address newGame = new BlockJack(randSeed, playerCap, bet, gameIndex, this);
+        address newGame = new BlockJack(randSeed, playerCap, bet, gameIndex);
         games[gameIndex] = Game(gameIndex, newGame, playerCap);
         gameIndex += 1;
         return newGame;

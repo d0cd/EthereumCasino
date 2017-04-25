@@ -1,6 +1,5 @@
 pragma solidity ^0.4.8;
 
-import "./Casino.sol";
 
 contract BlockJack {
 
@@ -25,7 +24,6 @@ contract BlockJack {
 		address[] allPlayers;
     address[] winners;
 		bool deal;
-		Casino casino;
 		uint private gameIndex;
 		uint timer;
 
@@ -69,13 +67,12 @@ contract BlockJack {
 		}
     //Creates a new BlockJack game, where the amount sent in
     //transaction is the minimum buy in.
-    function BlockJack(uint randSeed, uint playerCap, uint bet, uint index, Casino origin) {
+    function BlockJack(uint randSeed, uint playerCap, uint bet, uint index) {
           buyIn = bet;
           randNum = block.timestamp + randSeed;
           maxPlayers = playerCap;
 					deal = true;
 					numPlayers = 0;
-					casino = origin;
 					gameIndex = index;
     }
 
@@ -137,7 +134,6 @@ contract BlockJack {
 				for (i = 0; i < allPlayers.length; i++) {
 					cashOut(allPlayers[i]);
 				}
-				casino.removeGame(gameIndex);
 			} else {
 					cashOut(msg.sender);
 			}
