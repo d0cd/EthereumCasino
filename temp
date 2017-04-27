@@ -70,7 +70,6 @@ contract BlockJack {
           randNum = block.timestamp + randSeed;
           maxPlayers = playerCap;
 					numPlayers = 0;
-					numPlayers = 0;
     }
 
     function constructPlayer(address addr, uint balance, uint randSeed) private {
@@ -280,16 +279,15 @@ contract BlockJack {
 				Player player = players[msg.sender];
 				player.randSeed += randSeed;
 				randNum *= randSeed;
-				/*if (now > timer + timeLimit) {
-					orders[turn].pass = true;
+				if (now > timer + timeLimit) {
+					/*orders[turn].pass = true;*/
 				}
 				else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
 						throw;
-				}
-				else {*/
+				} else {
 					player.pass = true;
 					numPasses += 1;
-				/*}*/
+				}
 
 	}
 
@@ -403,10 +401,6 @@ contract BlockJack {
 
 		function getAddr() returns (address) {
 			return this;
-		}
-
-		function getNumPasses() returns (uint) {
-			return numPasses;
 		}
 
 }

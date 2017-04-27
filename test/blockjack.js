@@ -61,8 +61,11 @@ contract('BlockJack', function(accounts) {
     var cards_two;
     return BlockJack.deployed().then(function (instance) {
       blockjack = instance;
-      blockjack.play(false, 39785739, {from: account_one});
-      blockjack.play(false, 09864393, {from: account_two});
+      blockjack.pass(39785739, {from: account_one});
+      blockjack.pass(09864393, {from: account_two});
+      return blockjack.getNumPasses.call({from: account_one});
+    }).then(function (numPasses) {
+      assert.equal(numPasses.valueOf(), 2, "2 Passes should be made");
       return blockjack.getScore.call({from: account_one});
     }).then(function(score1) {
       score_one = score1.toNumber();
