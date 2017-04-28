@@ -36,6 +36,19 @@ contract('BlockJack', function(accounts) {
     });
   });
 
+  it("should move stage to next", function() {
+    var blockjack;
+    var account_one = accounts[0];
+    var account_two = accounts[1];
+    return BlockJack.deployed().then(function (instance) {
+      blockjack = instance;
+      return blockjack.getStageStart.call(account_one);
+  }).then(function(stage) {
+      console.log(stage.valueOf());
+      assert.equal(stage.valueOf(), 2, "Stage is not moved")
+  });
+});
+
   it("should deal cards to players", function() {
     var blockjack;
     var account_one = accounts[0];

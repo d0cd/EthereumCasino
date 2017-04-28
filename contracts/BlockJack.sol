@@ -6,7 +6,7 @@ contract BlockJack {
 		enum Stages {
 			AddPlayers,
 			AnteUp,
-			/*Deal,*/
+			Deal,
 			Play
 		}
 
@@ -48,17 +48,18 @@ contract BlockJack {
 
 		function nextStage() internal {
 				stage = Stages(uint(stage) + 1);
-				/*if (stage == Stages.Play) {
+				if (stage == Stages.Play) {
 						timer = now;
-				}*/
+				}
 		}
 
 		//TODO: Destroy game if no one is resonding
 		modifier timedTransitions() {
-			if (stage == Stages.AddPlayers && now >= time + 5 minutes && numPlayers > 1) {
+			if (stage == Stages.AddPlayers && now >= time + 5 minutes) {
+				time = now;
 				nextStage();
 			}
-			if (stage == Stages.AnteUp && roundPlayers.length > 1) {
+			if (stage == Stages.AnteUp && now >= time + 5 minutes) {
 				nextStage();
 			}
 			_;
@@ -69,7 +70,6 @@ contract BlockJack {
           buyIn = bet;
           randNum = block.timestamp + randSeed;
           maxPlayers = playerCap;
-					numPlayers = 0;
 					numPlayers = 0;
     }
 
@@ -83,25 +83,6 @@ contract BlockJack {
 
 
     //Adds a player to the game, provided amount meets minimum buy in.
-    function addPlayerFromCasino(uint randSeed, address addr)
-				payable
-				timedTransitions
-				atStage(Stages.AddPlayers)
-				returns (uint) {
-	      if (msg.value >= buyIn) {
-	              randNum += randSeed;
-	              constructPlayer(addr, msg.value, randSeed);
-	              numPlayers += 1;
-	              if (numPlayers == maxPlayers) {
-										nextStage();
-	              }
-								return numPlayers;
-	      } else {
-	              throw;
-
-	      	}
-  	}
-
 		function addPlayer(uint randSeed)
 			payable
 			timedTransitions
@@ -110,6 +91,7 @@ contract BlockJack {
 							randNum += randSeed;
 							constructPlayer(msg.sender, msg.value, randSeed);
 							numPlayers += 1;
+							allPlayers.push(msg.sender);
 							if (numPlayers == maxPlayers) {
 									nextStage();
 							}
@@ -171,7 +153,7 @@ contract BlockJack {
 				orders[player.order] = player;
         player.randSeed = player.randSeed * randNum;
         roundPlayers.push(msg.sender);
-				if (roundPlayers.length == allPlayers.length) {
+				if (roundPlayers.length == numPlayers) {
 					nextStage();
 				}
     }
@@ -179,8 +161,9 @@ contract BlockJack {
 
     function dealCards()
 				timedTransitions
-				atStage(Stages.Play)
+				atStage(Stages.Deal)
 				{
+				nextStage();
         for (uint i = 0; i < roundPlayers.length * 2; i++) {
             Player player = players[roundPlayers[i % roundPlayers.length]];
             uint card = drawCard(player);
@@ -192,7 +175,6 @@ contract BlockJack {
 					player = players[roundPlayers[j]];
 					player.score = calculateScore(player);
 				}
-				/*nextStage();*/
     }
 
 
@@ -224,7 +206,8 @@ contract BlockJack {
 				{
         Player player = players[msg.sender];
 				if (now > timer + timeLimit) {
-					/*orders[turn].pass = true;*/
+					orders[turn].pass = true;
+					timer = now;
 				}
         else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
             throw;
@@ -253,7 +236,8 @@ contract BlockJack {
 				{
 				Player player = players[msg.sender];
 				if (now > timer + timeLimit) {
-					/*orders[turn].pass = true;*/
+					orders[turn].pass = true;
+					timer = now;
 				}
         else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
             throw;
@@ -280,18 +264,18 @@ contract BlockJack {
 				Player player = players[msg.sender];
 				player.randSeed += randSeed;
 				randNum *= randSeed;
-				/*if (now > timer + timeLimit) {
+				if (now > timer + timeLimit) {
 					orders[turn].pass = true;
+					timer = now;
 				}
-				else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
+				/*else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
 						throw;
-				}
-				else {*/
+				}*/
+				else {
 					player.pass = true;
 					numPasses += 1;
-				/*}*/
-
-	}
+				}
+		}
 
 
     function determineWinner()
@@ -407,6 +391,14 @@ contract BlockJack {
 
 		function getNumPasses() returns (uint) {
 			return numPasses;
+		}
+
+		function getStage() returns (Stages) {
+			return stage;
+		}
+
+		function getStageStart() returns (Stages) {
+			return Stages.Deal;
 		}
 
 }
