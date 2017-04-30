@@ -357,8 +357,12 @@ contract BlockJack {
 			return numPlayers == maxPlayers;
 		}
 
-		function getNumPlayers() returns (uint res) {
+		function getNumPlayers() returns (uint) {
 			return numPlayers;
+		}
+
+		function getMaxPlayers() returns(uint) {
+			return maxPlayers;
 		}
 
 		function getPot() returns (uint) {

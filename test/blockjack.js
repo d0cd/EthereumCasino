@@ -9,6 +9,17 @@ contract('BlockJack', function(accounts) {
     });
   });
   //add new player
+  it("should check max players", function() {
+    var blockjack;
+    var account_one = accounts[0];
+    var account_two = accounts[1];
+    return BlockJack.deployed().then(function(instance) {
+      blockjack = instance;
+      return instance.getMaxPlayers.call({from:account_one});
+    }).then(function(numPlayers) {
+      assert.equal(numPlayers.valueOf(), 2, "Max players are wrong");
+    });
+  })
   it("should add new player", function() {
       var blockjack;
       var account_one = accounts[0];
