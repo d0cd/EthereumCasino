@@ -33,6 +33,7 @@ contract BlockJack {
         uint order;
         uint score;
         uint[] hand;
+				bool split;
     }
 
     mapping (address => Player) players;
@@ -48,6 +49,10 @@ contract BlockJack {
 
 		function nextStage() internal {
 				stage = Stages(uint(stage) + 1);
+				time = now;
+				if (stage == Stages.Deal) {
+					// dealCards();
+				}
 				if (stage == Stages.Play) {
 						timer = now;
 				}
@@ -79,6 +84,7 @@ contract BlockJack {
         newPlayer.pass = false;
         newPlayer.randSeed = randSeed;
         newPlayer.order = 0;
+				newPlayer.split = false;
     }
 
 
@@ -155,6 +161,7 @@ contract BlockJack {
         roundPlayers.push(msg.sender);
 				if (roundPlayers.length == numPlayers) {
 					nextStage();
+					dealCards();
 				}
     }
 
@@ -200,16 +207,53 @@ contract BlockJack {
         return card;
     }
 
+		function split(uint randSeed)
+		timedTransitions
+		atStage(Stages.Play)
+		{
+			randNum *= randSeed;
+			Player player = players[msg.sender];
+			if (now > timer + timeLimit) {
+				orders[turn].pass = true;
+				timer = now;
+ 			} else if (turn != player.order || player.pass || roundPlayers.length == numPasses || player.split || player.balance < buyIn) {
+	    		throw;
+			} else {
+				player.balance -= buyIn;
+				pot += buyIn;
+				player.split = true;
+				for (int i = 0; i < 2; i++) {
+					uint card = drawCard(player);
+					cardsDrawn.push(card);
+					player.hand.push(card);
+
+				}
+				player.score = calculateSplitScore(player);
+				if(player.score >= 21) {
+						//Bust or 21
+						player.pass == true;
+						numPasses += 1;
+				}
+			} if (turn == roundPlayers.length) {
+					turn = 0;
+		  } else {
+		      turn += 1;
+		  }
+			timer = now;
+
+		}
+
     function hit (uint randSeed)
 				timedTransitions
 				atStage(Stages.Play)
 				{
+				randNum *= randSeed;
         Player player = players[msg.sender];
 				if (now > timer + timeLimit) {
 					orders[turn].pass = true;
 					timer = now;
 				}
-        else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
+        else if (turn != player.order || player.pass || roundPlayers.length == numPasses || player.split) {
             throw;
         }
         else {
@@ -228,12 +272,57 @@ contract BlockJack {
         } else {
             turn += 1;
         }
+				timer = now;
     }
 
-		function surrender()
+		function splitHit (uint randSeed, bool draw_one, bool draw_two)
+		timedTransitions
+		atStage(Stages.Play)
+		{
+			randNum *= randSeed;
+			Player player = players[msg.sender];
+			if (now > timer + timeLimit) {
+				orders[turn].pass = true;
+				timer = now;
+			}
+			else if (turn != player.order || player.pass || roundPlayers.length == numPasses || !player.split || player.balance < buyIn) {
+					throw;
+			} else if (!draw_one && !draw_two) {
+					player.pass = true;
+					numPasses += 1;
+			} else {
+					uint card = 1000;
+					if (draw_one) {
+						 card = drawCard(player);
+						 cardsDrawn.push(card);
+					}
+					player.hand.push(card);
+					card = 1000;
+					if (draw_two) {
+						card = drawCard(player);
+						cardsDrawn.push(card);
+					}
+					player.hand.push(card);
+			}
+		player.score = calculateSplitScore(player);
+		if (player.score >= 21) {
+				//Bust or 21
+				player.pass == true;
+				numPasses += 1;
+		}
+		if (turn == roundPlayers.length) {
+				turn = 0;
+		} else {
+				turn += 1;
+		}
+		timer = now;
+	}
+
+		function surrender(uint randSeed)
 				timedTransitions
 				atStage(Stages.Play)
 				{
+				randNum *= randSeed;
 				Player player = players[msg.sender];
 				if (now > timer + timeLimit) {
 					orders[turn].pass = true;
@@ -255,12 +344,14 @@ contract BlockJack {
 				} else {
 						turn += 1;
 				}
+				timer = now;
 		}
 
 		function pass(uint randSeed)
 				timedTransitions
 				atStage(Stages.Play)
 				{
+				randNum *= randSeed;
 				Player player = players[msg.sender];
 				player.randSeed += randSeed;
 				randNum *= randSeed;
@@ -268,13 +359,14 @@ contract BlockJack {
 					orders[turn].pass = true;
 					timer = now;
 				}
-				/*else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
+				else if (turn != player.order || player.pass || roundPlayers.length == numPasses) {
 						throw;
-				}*/
+				}
 				else {
 					player.pass = true;
 					numPasses += 1;
 				}
+				timer = now;
 		}
 
 
@@ -298,6 +390,60 @@ contract BlockJack {
         }
 				payWinners(winners);
     }
+
+		function calculateSplitScore(Player player) private returns (uint) {
+				uint score = 0;
+				uint numAces = 0;
+				uint total = 0;
+				for (uint i = 0; i < player.hand.length; i += 2) {
+					uint card = player.hand[i] % 52 % 13;
+					if (card > 10) {
+						card = 10;
+					}
+					if (card == 0) {
+						numAces += 1;
+					}
+					if (card == 1000) {
+						card = 0;
+					}
+					total += card;
+				}
+				for (uint j = 0; j < numAces; j++) {
+					if (total + 11 > 21) {
+						total += 1;
+					} else {
+						total += 11;
+					}
+				}
+				numAces = 0;
+				score = total;
+				total = 0;
+				for (i = 1; i < player.hand.length; i += 2) {
+					card = player.hand[i] % 52 % 13;
+					if (card > 10) {
+						card = 10;
+					}
+					if (card == 0) {
+						numAces += 1;
+					}
+					if (card == 1000) {
+						card = 0;
+					}
+					total += card;
+				}
+				for (j = 0; j < numAces; j++) {
+					if (total + 11 > 21) {
+						total += 1;
+					} else {
+						total += 11;
+					}
+				}
+				if (total <= 21 && total > score) {
+						score = total;
+				}
+				return score;
+		}
+
 
     /*TODO: Add in blackjack rules for card values */
     function calculateScore(Player player) private returns (uint) {
@@ -341,12 +487,13 @@ contract BlockJack {
             player.pass = false;
             player.order = 0;
             player.score = 0;
+						player.split = false;
             delete player.hand;
         }
         delete roundPlayers;
         delete cardsDrawn;
         delete winners;
-				stage = Stages.AddPlayers;
+				stage = Stages.AnteUp;
     }
 
 		function getBuyIn() returns (uint) {
@@ -363,6 +510,14 @@ contract BlockJack {
 
 		function getMaxPlayers() returns(uint) {
 			return maxPlayers;
+		}
+
+		function getAllPlayers() returns(address[]) {
+			return allPlayers;
+		}
+
+		function getRoundPlayers() returns(address[]) {
+			return roundPlayers;
 		}
 
 		function getPot() returns (uint) {
@@ -399,6 +554,14 @@ contract BlockJack {
 
 		function getStage() returns (Stages) {
 			return stage;
+		}
+
+		function getTurn() returns (uint) {
+			return turn;
+		}
+
+		function getOrder(address addr) returns (uint) {
+			return players[addr].order;
 		}
 
 		function getStageStart() returns (Stages) {
